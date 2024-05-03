@@ -1,7 +1,7 @@
-# Atoll (modified)
+# Atoll-PassGen
 
 Atoll is a library for generating cryptographically secure and highly random secrets.
-Modified by Payton Erickson for use in Cybersecurity competitions
+Modified by Payton Erickson for use in a Password Generator
 
 ## Features
 
@@ -94,7 +94,7 @@ Atoll offers ways of generating a passphrase:
 
 > Randomness is a measure of the observer's ignorance, not an inherent quality of a process.
 
-Atoll (modified) uses the "math/rand/v2" package to generate **cryptographically secure pseudo random numbers**.
+Atoll-PassGen uses the "math/rand/v2" chacha8 function to generate **cryptographically secure pseudo random numbers**.
 
 ### Entropy
 
@@ -124,4 +124,4 @@ In 2019 a record was set for a computer trying to generate every conceivable pas
 
 ## License
 
-Atoll (modified) is licensed under the [MIT](/LICENSE) license.
+Atoll-PassGen is licensed under the [MIT](/LICENSE) license.
