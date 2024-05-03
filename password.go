@@ -16,6 +16,7 @@ const (
 	Digit   = Level("0123456789")
 	Space   = Level(" ")
 	Special = Level("&$%@#|/\\=\"*~^`'.?!,;:-+_(){}[]<>")
+	SafeSpecials = Level("%()=?}{@#+!")
 )
 
 // Level represents a determined group of characters.
@@ -35,10 +36,14 @@ type Password struct {
 	Length uint64
 	// Character repetition.
 	Repeat bool
+	// Number of passphrases to generate
+	Number uint64
+	// sha256 hashed seed
+	Seed [32]byte
 }
 
 // NewPassword returns a random password.
-func NewPassword(length uint64, levels []Level) ([]byte, error) {
+func NewPassword(length uint64, levels []Level) ([][]byte, error) {
 	p := &Password{
 		Length: length,
 		Levels: levels,
@@ -48,7 +53,7 @@ func NewPassword(length uint64, levels []Level) ([]byte, error) {
 }
 
 // Generate generates a random password.
-func (p *Password) Generate() ([]byte, error) {
+func (p *Password) Generate() ([][]byte, error) {
 	password, err := p.generate()
 	if err != nil {
 		return nil, fmt.Errorf("atoll: %w", err)
@@ -57,26 +62,34 @@ func (p *Password) Generate() ([]byte, error) {
 	return password, nil
 }
 
-func (p *Password) generate() ([]byte, error) {
+func (p *Password) generate() ([][]byte, error) {
 	if err := p.validateParams(); err != nil {
 		return nil, err
 	}
-
-	p.generatePool()
-
-	if !p.Repeat && int(p.Length) > (len(p.pool)+len(p.Include)) {
-		return nil, errors.New("password length is higher than the pool and repetition is turned off")
+	if p.Seed == [32]byte{} {
+		randSeed()
+	} else {
+		setSeed(p.Seed)
 	}
 
-	password := p.buildPassword()
-	password = p.sanitize(password)
+	password_list := make([][]byte, p.Number)
+
+	for i:=0; i<int(p.Number); i++ {
+		p.generatePool()
+
+		if !p.Repeat && int(p.Length) > (len(p.pool)+len(p.Include)) {
+			return nil, errors.New("password length is higher than the pool and repetition is turned off")
+		}
+		password_list[i] = p.sanitize(p.buildPassword())
+	}
+
 	// Wipe sensitive data
 	for i := range p.pool {
 		p.pool[i] = 0
 	}
 	// Keep buf alive so preceding loop is not optimized out
 	runtime.KeepAlive(p.pool)
-	return password, nil
+	return password_list, nil
 }
 
 // buildPassword creates the password.

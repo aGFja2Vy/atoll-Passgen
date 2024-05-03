@@ -7,6 +7,8 @@ import (
 	"math"
 	"runtime"
 	"unicode/utf8"
+	"strings"
+	"strconv"
 )
 
 var (
@@ -36,12 +38,18 @@ type Passphrase struct {
 	Exclude []string
 	// Number of words in the passphrase.
 	Length uint64
+	// Number of passphrases to generate
+	Number uint64
+	// sha256 hashed seed
+	Seed [32]byte
+	// wordlist
+	WordList [][]byte
 }
 
 type list func(p *Passphrase, length int)
 
 // NewPassphrase returns a random passphrase.
-func NewPassphrase(length uint64, l list) ([]byte, error) {
+func NewPassphrase(length uint64, l list) ([][]byte, error) {
 	p := &Passphrase{
 		Length: length,
 		List:   l,
@@ -51,7 +59,7 @@ func NewPassphrase(length uint64, l list) ([]byte, error) {
 }
 
 // Generate generates a random passphrase.
-func (p *Passphrase) Generate() ([]byte, error) {
+func (p *Passphrase) Generate() ([][]byte, error) {
 	passphrase, err := p.generate()
 	if err != nil {
 		return nil, fmt.Errorf("atoll: %v", err)
@@ -60,7 +68,7 @@ func (p *Passphrase) Generate() ([]byte, error) {
 	return passphrase, nil
 }
 
-func (p *Passphrase) generate() ([]byte, error) {
+func (p *Passphrase) generate() ([][]byte, error) {
 	if err := p.validateParams(); err != nil {
 		return nil, err
 	}
@@ -72,23 +80,40 @@ func (p *Passphrase) generate() ([]byte, error) {
 	if p.List == nil {
 		p.List = NoList
 	}
+	if p.List != nil && p.WordList == nil {
+		p.WordList = wordList
+	}
+	if p.Number <= 0 {
+		p.Number = 1
+	}
+	if p.Seed == [32]byte{} {
+		randSeed()
+	} else {
+		setSeed(p.Seed)
+	}
+
+	passphrase_list := make([][]byte, p.Number)
 
 	// Initialize secret slice
 	p.words = make([][]byte, p.Length)
 	length := int(p.Length) - len(p.Include)
 
-	// Generate the passphrase with the list specified
-	p.List(p, length)
 
-	// Include and exclude words
-	if len(p.Include) != 0 {
-		p.includeWords()
-	}
-	if len(p.Exclude) != 0 {
-		p.excludeWords()
+	for i:=0; i<int(p.Number); i++ {
+		// Generate the passphrase with the list specified
+		p.List(p, length)
+
+		// Include and exclude words
+		if len(p.Include) != 0 {
+			p.includeWords()
+		}
+		if len(p.Exclude) != 0 {
+			p.excludeWords()
+		}
+
+		passphrase_list[i] = bytes.Join(p.words, []byte(p.Separator))
 	}
 
-	passphrase := bytes.Join(p.words, []byte(p.Separator))
 	// Wipe sensitive data
 	for i := range p.words {
 		for j := range p.words[i] {
@@ -97,7 +122,7 @@ func (p *Passphrase) generate() ([]byte, error) {
 	}
 	// Keep buf alive so preceding loop is not optimized out
 	runtime.KeepAlive(p.words)
-	return passphrase, nil
+	return passphrase_list, nil
 }
 
 func (p *Passphrase) validateParams() error {
@@ -206,7 +231,41 @@ func NoList(p *Passphrase, length int) {
 // WordList generates a passphrase using a wordlist (18,325 long).
 func WordList(p *Passphrase, length int) {
 	for i := 0; i < length; i++ {
-		p.words[i] = wordList[randInt(len(wordList))]
+		p.words[i] = p.WordList[randInt(len(p.WordList))]
+	}
+}
+// WordList generates a passphrase using a wordlist (18,325 long).
+func WordListNum(p *Passphrase, length int) {
+	// pick random number between 0 and len to decide where to put the number
+	insert_index := randInt(length)
+	// pick a random number between 0 and 9 to put in that spot
+	rand_num := randInt(9)
+	for i := 0; i < length; i++ {
+		if int64(i) == insert_index {
+			p.words[i] = []byte(string(p.WordList[randInt(len(p.WordList))]) + strconv.Itoa(int(rand_num)))
+		} else {
+			p.words[i] = p.WordList[randInt(len(p.WordList))]
+		}
+	}
+}
+// WordList generates a passphrase using a wordlist (18,325 long).
+func WordListCap(p *Passphrase, length int) {
+	for i := 0; i < length; i++ {
+		p.words[i] = []byte(strings.Title(string(p.WordList[randInt(len(p.WordList))])))
+	}
+}
+// WordList generates a passphrase using a wordlist (18,325 long).
+func WordListNumCap(p *Passphrase, length int) {
+	// pick random number between 0 and len to decide where to put the number
+	insert_index := randInt(length)
+	// pick a random number between 0 and 9 to put in that spot
+	rand_num := randInt(9)
+	for i := 0; i < length; i++ {
+		if int64(i) == insert_index {
+			p.words[i] = []byte(strings.Title(string(p.WordList[randInt(len(p.WordList))])) + strconv.Itoa(int(rand_num)))
+		} else {
+			p.words[i] = []byte(strings.Title(string(p.WordList[randInt(len(p.WordList))])))
+		}
 	}
 }
 
